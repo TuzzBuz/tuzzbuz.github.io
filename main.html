@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Private Domain! Keep Out</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background-color: black;
+      color: lime;
+      font-family: monospace;
+    }
+    /* The header will change based on admin status */
+    h1#welcomeText {
+      font-weight: bold;
+    }
+    #console {
+      width: 80%;
+      max-width: 600px;
+      height: 300px;
+      background: black;
+      color: lime;
+      padding: 10px;
+      border: 1px solid lime;
+      overflow-y: auto;
+    }
+    .input-line {
+      display: flex;
+    }
+    .prompt {
+      color: lime;
+      margin-right: 5px;
+    }
+    .console-input {
+      background: black;
+      color: lime;
+      border: none;
+      outline: none;
+      width: 100%;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <!-- Default header for non‑admin users is "Welcome Back!" in green -->
+  <h1 id="welcomeText" style="color: red;">Private Domain! Keep Out</h1>
+  <div id="console">
+    <div class="input-line">
+      <span class="prompt">$</span>
+      <input type="text" id="commandInput" class="console-input" autofocus>
+    </div>
+  </div>
+
+  <script>
+    // Global admin flag; initially not logged in.
+    let isAdmin = false;
+    // Track visits using localStorage.
+    let visits = localStorage.getItem("visitCount") || 0;
+    visits = parseInt(visits) + 1;
+    localStorage.setItem("visitCount", visits);
+
+    const welcomeText = document.getElementById("welcomeText");
+    const consoleDiv = document.getElementById("console");
+
+    // Mapping for Tomorrow.io weather codes (a minimal set for demonstration).
+    const weatherCodeMapping = {
+      "1000": "Clear",
+      "1100": "Mostly Clear",
+      "1101": "Partly Cloudy",
+      "1102": "Mostly Cloudy",
+      "1001": "Cloudy",
+      "2000": "Fog",
+      "2100": "Light Fog",
+      "4000": "Drizzle",
+      "4001": "Rain",
+      "4200": "Light Rain",
+      "4201": "Heavy Rain",
+      "5000": "Snow",
+      "5001": "Flurries"
+    };
+
+    // Main command listener (declared async so we can await the weather fetch).
+    document.getElementById("commandInput").addEventListener("keydown", async function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        let input = this.value.trim();
+        let lowerInput = input.toLowerCase();
+        let output = document.createElement("div");
+        output.textContent = "$ " + input;
+        consoleDiv.appendChild(output);
+        let response = document.createElement("div");
+
+        // If not admin, allow only admin login or the leave command.
+        if (!isAdmin) {
+          if (lowerInput.startsWith("admin:")) {
+            let passwordEntered = input.substring(6).trim();
+            if (passwordEntered === "23_06_09_08_02_2025") {
+              isAdmin = true;
+              // Change header if is admin.
+              welcomeText.textContent = "Welcome Back!";
+              welcomeText.style.color = "green";
+              response.textContent = "Admin access granted. Kalos Irthes, Apostoli!";
+            } else {
+              response.textContent = "Access denied.";
+            }
+          } else if (lowerInput === "leave") {
+            response.textContent = "Exiting console...";
+            disableInput();
+          } else {
+            response.textContent = "Access denied.";
+          }
+          consoleDiv.appendChild(response);
+          this.value = "";
+          consoleDiv.scrollTop = consoleDiv.scrollHeight;
+          return; // End processing if not admin.
+        }
+        
+        // If admin, process all commands.
+        if (lowerInput.startsWith("find:")) {
+          let query = input.substring(5).trim();
+          if (query) {
+            response.innerHTML = `Searching for: ${query}...<br>
+              <a href="https://www.google.com/search?q=${encodeURIComponent(query)}" target="_blank">
+                View Google search results for "${query}"
+              </a>`;
+          } else {
+            response.textContent = "Usage: find: [your search query]";
+          }
+        } else if (lowerInput.startsWith("weather:")) {
+          let city = input.substring(8).trim();
+          if (city) {
+            response.textContent = "Fetching weather...";
+            consoleDiv.appendChild(response);
+            let weatherResponse = await getWeather(city);
+            response.textContent = weatherResponse;
+          } else {
+            response.textContent = "Usage: weather: [city]";
+          }
+        } else if (lowerInput.startsWith("translate:")) {
+          let parts = input.substring(10).trim().split(" to ");
+          if (parts.length === 2) {
+            let textToTranslate = parts[0].trim();
+            let language = parts[1].trim();
+            let translated = translateText(textToTranslate);
+            response.textContent = `Translation to ${language}: ${translated}`;
+          } else {
+            response.textContent = "Usage: translate: [text] to [language]";
+          }
+        } else if (lowerInput === "help") {
+          response.innerHTML = `Available commands:<br>
+            admin: [password] - Gain admin access<br>
+            find:[query]<br>
+            weather:[city]<br>
+            translate:[text] to [language]<br>
+            help<br>
+            clear<br>
+            date<br>
+            about<br>
+            visits<br>
+            leave<br>`;
+        } else if (lowerInput === "clear") {
+          // Clear the console and recreate the input line.
+          consoleDiv.innerHTML = "";
+          let inputLine = document.createElement("div");
+          inputLine.className = "input-line";
+          inputLine.innerHTML = '<span class="prompt">$</span><input type="text" id="commandInput" class="console-input" autofocus>';
+          consoleDiv.appendChild(inputLine);
+          document.getElementById("commandInput").addEventListener("keydown", arguments.callee);
+          return;
+        } else if (lowerInput === "date") {
+          response.textContent = "Current date: " + new Date().toLocaleString();
+        } else if (lowerInput === "about") {
+          response.textContent = "This is a smart web console bot simulation using genuine weather data from Tomorrow.io.";
+        } else if (lowerInput === "visits") {
+          response.textContent = "You have visited this page " + visits + " times.";
+        } else if (lowerInput === "leave") {
+          response.textContent = "Exiting console...";
+          disableInput();
+        } else {
+          response.textContent = "Unknown command. Type 'help' for available commands.";
+        }
+        
+        consoleDiv.appendChild(response);
+        this.value = "";
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+      }
+    });
+
+    // Function: Fetch genuine weather data from Tomorrow.io.
+    async function getWeather(city) {
+      // First, geocode the city name to obtain latitude and longitude.
+      const coords = await geocodeCity(city);
+      if (!coords) {
+        return `City not found: ${city}`;
+      }
+      const lat = coords.lat;
+      const lon = coords.lon;
+      const apiKey = "jvbAaUjBRxTLVgDXpZzAgkXMQLdwEAMQ"; // Replace with your Tomorrow.io API key.
+      const url = `https://api.tomorrow.io/v4/timelines?location=${lat},${lon}&fields=temperature,weatherCode&units=metric&timesteps=current&apikey=${apiKey}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.data && data.data.timelines && data.data.timelines.length > 0) {
+          const interval = data.data.timelines[0].intervals[0];
+          const temperature = interval.values.temperature;
+          const weatherCode = interval.values.weatherCode;
+          const description = weatherCodeMapping[weatherCode.toString()] || `Code ${weatherCode}`;
+          return `Weather in ${city.charAt(0).toUpperCase() + city.slice(1)}: ${description}, ${temperature}°C`;
+        } else {
+          return `Weather data not found for ${city}`;
+        }
+      } catch (err) {
+        return "Error fetching weather data.";
+      }
+    }
+
+    // Function: Geocode a city name using the Nominatim OpenStreetMap API.
+    async function geocodeCity(city) {
+      const url = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&format=json&limit=1`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          return { lat: data[0].lat, lon: data[0].lon };
+        }
+      } catch (err) {
+        console.error("Geocoding error:", err);
+      }
+      return null;
+    }
+
+    // Function: Dummy translation using a simple Caesar cipher (shift each letter by 1).
+    function translateText(text) {
+      let result = "";
+      for (let i = 0; i < text.length; i++) {
+        let char = text[i];
+        if (char.match(/[a-z]/i)) {
+          let code = text.charCodeAt(i);
+          if (code >= 65 && code <= 90) {
+            result += String.fromCharCode(((code - 65 + 1) % 26) + 65);
+          } else if (code >= 97 && code <= 122) {
+            result += String.fromCharCode(((code - 97 + 1) % 26) + 97);
+          } else {
+            result += char;
+          }
+        } else {
+          result += char;
+        }
+      }
+      return result;
+    }
+
+    // Function: Disable further input (simulate leaving or shutdown).
+    function disableInput() {
+      document.getElementById("commandInput").disabled = true;
+    }
+  </script>
+</body>
+</html>
